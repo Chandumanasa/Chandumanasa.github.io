@@ -1,0 +1,506 @@
+import pyodbc
+import re
+import openpyxl as op
+from openpyxl.utils import get_column_letter
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+#connection details
+server = 'TWINH-DES-0309'
+database = 'Library Management system'  
+username = 'sa'
+password = 'Admin#123'
+driver = '{SQL Server}'
+
+# connection string
+connection_string = f'DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}'
+
+try:
+    #  establish a connection
+    conn = pyodbc.connect(connection_string)
+    print("Connection established!")
+    cursor=conn.cursor()
+    # cursor.execute('''Create Table Books(
+    #                     Book_Id int primary key,
+    #                     Title nvarchar(200) ,
+    #                     Author nvarchar(200),
+    #                     Publication  nvarchar(200),
+    #                     Quantity int                
+    #                 )                
+    #               ''' )
+
+    # cursor.execute('''Create Table User_Registrations(
+    #                     User_Id int primary key,
+    #                     UserName nvarchar(200),
+    #                     Email nvarchar(100),
+    #                     PhoneNumber nvarchar(10),
+    #                     User_status nvarchar(10),
+    #                     Password nvarchar(8)
+                
+    #             )''')
+    current_user = None
+ 
+    
+    def Register(is_accepted=False):
+        
+        Name = ''
+        Email = ''
+        Phone_Number = ''
+        Password = ''
+        while True:
+            if not Name:
+                Name = input("Enter Name: ")
+                cursor.execute('SELECT Name FROM User_Registrations')
+                existing_username=[row[0] for row in cursor.fetchall()]
+                if not re.match(r"^[A-Z][a-zA-Z]*$", Name):
+                    print("Name should contain only letters\n")
+                    Name = ''
+                    continue
+
+                if Name in existing_username:
+                    print("Name already exists. It must be unique.\n")
+                    Name = ''
+                    continue
+            
+            
+            if not Email:    
+                Email = input("Enter Email: ")
+                cursor.execute('SELECT Email FROM User_Registrations')
+                existing_emails = [row[0] for row in cursor.fetchall()]
+                
+                if not re.match(r"[a-zA-Z0-9]+@[a-zA-Z]+\.[a-zA-Z]+", Email):
+                    print("Invalid Email format. Please enter a valid email (e.g., xyz@gmail.com).\n")
+                    Email = ''
+                    continue
+                    
+                if Email in existing_emails:
+                    print("Email already exists. It must be unique.\n")
+                    Email = ''
+                    continue
+        
+            if not Phone_Number:
+                Phone_Number = input("Enter Phone Number: ")
+                cursor.execute('SELECT PhoneNumber FROM User_Registrations')
+                existing_phones = [row[0] for row in cursor.fetchall()]
+                if not re.match(r"^[6-9]\d{9}$", Phone_Number):
+                    print("Invalid Phone Number. Please enter a 10-digit number starting with 6, 7, 8, or 9.\n")
+                    Phone_Number=''
+                    continue
+                    
+                if Phone_Number in existing_phones:
+                    print("Phone number already exists. It must be unique.\n")
+                    Phone_Number=''
+                    continue
+                            
+            if not Password:
+                Password = input("Enter Password: ")
+                if not (len(Password) >= 8 and any(c.isnumeric() for c in Password) and any(c.isupper() for c in Password) and any(not c.isalnum() for c in Password)):
+                    print("Invalid Password. Password length should be 8 characters with at least 1 uppercase letter, 1 number, and 1 special character.\n")
+                    Password = ''
+                    continue
+        
+            Confirm_Password = input("Confirm the Password: ")
+            if Password != Confirm_Password:
+                print("Passwords do not match. Please re-enter.\n")
+                Password = ''
+                continue
+ 
+            Username=Name[0:3]+ Phone_Number[-5:]
+            if is_accepted:
+                cursor.execute('''
+                    INSERT INTO User_Registrations(UserName, Name, Email, PhoneNumber, User_status, Password)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (Username, Name, Email, Phone_Number, "accepted", Password))
+                conn.commit()
+                print("User Added by Admin Succesfully")
+                return {
+                    'User_Id': Username,
+                    'Name':Name,
+                    'Email': Email,
+                    'PhoneNumber': Phone_Number,
+                    'User_status': "accepted",
+                    'Password': Password
+                }
+            
+            else:
+                cursor.execute('''
+                    INSERT INTO User_Registrations(UserName, Name, Email, PhoneNumber, User_status, Password)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (Username, Name, Email, Phone_Number, None, Password))
+                conn.commit()
+                print("\n********Registration successful*********\n")
+                return {
+                    'UserName': Username,
+                    'Name': Name,
+                    'Email': Email,
+                    'PhoneNumber': Phone_Number,
+                    'User_status': "accepted",
+                    'Password': Password
+                }
+    (cursor.execute('''Select * from User_Registrations'''))
+    User_registrations = cursor.fetchall()
+
+    def Login(): 
+        global Accepted_Users  
+        qry=('''Select * from User_Registrations where User_Status=?''')
+        cursor.execute(qry,"accepted")
+        Accepted_Users=cursor.fetchall()
+        if len(Accepted_Users) == 0:
+            print("You need to register first in order to login")
+        else:
+            print("Enter Username and Password to Login:\n")
+            Username = input("Enter Username: ")
+            Password = input("Enter Password: ")
+
+            user_exists = False
+            for user in Accepted_Users:
+                if user[1] == Username:
+                    user_exists = True
+                    if user[5] == Password:
+                        print("*" * 10 + "Welcome " + Username[0].upper() + Username[1:] + "*" * 10 + "\n")
+                        # Do whatever you need after successful login
+                    else:
+                        print("Incorrect Password. Please re-enter.\n")
+                    break
+
+            if not user_exists:
+                print("Username does not exist or is not approved yet.")
+
+    def Librarian_Login():
+        global User_registrations 
+        print("*"*10+" Admin Login "+"*"*10)
+        Admin_Credentials = [{'username':'Manasa','password':'admin@123'},{'username':'Sajwa','password':'admin1@123'}]
+        Username = input("Enter Username:")
+        Password = input("Enter Password:")
+        authenticated = False 
+        for i in range(len(Admin_Credentials)):
+            if Admin_Credentials[i]['username'].lower() == Username.lower():
+                if Admin_Credentials[i]['password'] == Password:
+                    print("Admin Login Successful\n")
+                    authenticated = True 
+                    print("Welcome "+ Username[0].upper()+Username[1:]+"\n")
+                    (cursor.execute('''Select * from User_Registrations'''))
+                    User_registrations = cursor.fetchall()
+                    print(User_registrations)
+                    cursor.execute('''Select * from Books''')
+                    Books=cursor.fetchall()
+                    while True:
+                        print("Select option:\n1.View Registered Users\n2.Approving the request\n3.Add a Book\n4.Remove a Book\n5.Search for a Book\n6.Add a User\n7.Logout\n")
+                        option = int(input("\nEnter an option:"))                    
+                        if option == 1:
+                            for user in User_registrations:
+                                print(user)
+                        elif option == 2:
+                            for user in User_registrations:
+                                if(user[4]==None):
+                                    request = input("Accept , Reject or keep in Pending  the request of " + user[1] + ": ")
+                                    if request.lower() == "accept":
+                                        qry = 'UPDATE User_Registrations SET User_status=? WHERE UserName=?'
+                                        try:
+                                            cursor.execute(qry, ("accepted", user[1]))
+                                            conn.commit()
+                                            
+                                        except pyodbc.Error as ex:
+                                            print("Error updating user status:", ex)
+                                    elif request.lower() == "reject":
+                                        qry = 'UPDATE User_Registrations SET User_status=? WHERE UserName=?'
+                                        try:
+                                            cursor.execute(qry, ("rejected", user[1]))
+                                            conn.commit()
+                                           
+                                        except pyodbc.Error as ex:
+                                            print("Error updating user status:", ex)
+                                    else:
+                                        qry = 'UPDATE User_Registrations SET User_status=? WHERE UserName=?'
+                                        try:
+                                            cursor.execute(qry, ("pending", user[1]))
+                                            conn.commit()
+                                            
+                                        except pyodbc.Error as ex:
+                                            print("Error updating user status:", ex)
+                                
+                            else:
+                                print("no requests")
+                           
+                        elif option == 3:
+                            Title = input("Enter a Book Name:")
+                            Author = input("Enter Author Name:")
+                            Publication_Year = int(input("Enter Publication year:"))
+                            Quantity=int(input("Enter no.of Copies:"))
+                            ISBN=input("Enter ISBN Number:")
+                            Publisher=input("Enter the Publisher Name")
+                            Pages=input("Enter the Number of pages:")
+                            Language=input("Enter the Language of the Book:")
+                            Genre=input("Enter the Genre of the Book whether it is fiction ,non-fiction or mystery etc...:")
+                            Edition=(input("Enter the Edition of the Book:"))
+                            Book_Id=Title[:3]+ISBN[-5:]
+                            qry='''INSERT INTO BOOKS(Book_Id,Title,Author,Publication_Year,Quantity,ISBN,Publisher,Number_of_Pages,Language,Genre,Edition)
+                            VALUES(?,?,?,?,?,?,?,?,?,?,?)'''
+                            cursor.execute(qry,(Book_Id,Title,Author,Publication_Year,Quantity,ISBN,Publisher,Pages,Language,Genre,Edition))
+                            conn.commit()
+                            print("\n******Book with "+Title+" is added ******\n")
+                            cursor.execute('''Select * from Books''')
+                            Books=cursor.fetchall()
+                            print(Books)
+                        elif option == 4:                 
+                            BookName=input("Enter the title of book:")
+                            quan=int(input("Enter the number of books you want to remove:"))
+                            for book in Books:
+                                if book[1].lower()==BookName.lower():
+                                    if book[4]>1:
+                                        cursor.execute('''UPDATE BOOKS SET Quantity=Quantity-? from Books where Title=?''',(quan,BookName))
+                                        conn.commit()
+                                        print("\n******"+quan+BookName+"s are Removed ******\n")
+                                        break
+                                       
+                                    elif book[4]==1:
+                                        cursor.execute('''delete from Books where Title=?''',(BookName))
+                                        conn.commit()
+                                        print("\n****** "+BookName+" is Removed ******\n")
+                                        break
+                                
+                        elif option == 5:
+                            search=input("search for the book by title or author Name or publisher: ")
+                            found = False
+                            for book in Books:
+                                print(book[1],book[2],book[6])
+                                print(book[1].lower())
+                                if((book[1].lower()==search.lower()) or (book[2].lower()==search.lower()) or (book[6].lower()==search.lower())):
+                                    print(book) 
+                                    found = True       
+                                    break
+                            if not found:
+                                print("The Book you searched for does not exist in our library")    
+                        elif option==6: 
+                            option=int(input("Enter option:\n1.Manual\n2.Upload Excel file\n"))
+                            if option==1:
+                                Register(True)
+                            elif option==2:
+                                AddFilePath()
+                                break
+                             
+                            
+                        elif option==7:
+                            Logout()
+                            
+                            break
+                            
+                        else:
+                            print("Invalid option")
+                            break
+                    break
+
+            if not authenticated:
+                print("Username or Password incorrect")
+            return False  # Return False when authentication fails
+
+        return True          
+                       
+
+    def Logout():
+        print("\n****Logged out****\n")
+    import random
+    def generate_username(name, phone):
+        name_part = ''.join(random.sample(name.lower().strip(), 3))  # Take any 3 random characters from name
+        phone_part = ''.join(random.sample(phone, 5))  # Take any 5 characters from phone number randomly
+        return name_part + phone_part  # Concatenate both parts to create the username
+    import string
+
+    def generate_password():
+        gen_password = input("Enter Password: ")
+        
+        while not (len(gen_password) >= 8 and any(c.isnumeric() for c in gen_password) and any(c.isupper() for c in gen_password) and any(not c.isalnum() for c in gen_password)):
+            print("Invalid Password. Password length should be 8 characters with at least 1 uppercase letter, 1 number, and 1 special character.\n")
+            gen_password = input("Enter Password: ")
+        
+        return gen_password
+
+
+    def generate_failed_users_report(file_name, not_agreed):
+        c = canvas.Canvas(file_name, pagesize=letter)
+        c.setFont("Helvetica", 12)
+
+        c.drawString(100, 750, "Failed Users Report")
+
+        # Position for listing failed users
+        y_position = 730
+
+        # Write information about failed users to the PDF
+        for user in not_agreed:
+            c.drawString(100, y_position, f"Name: {user[0]}")
+            c.drawString(100, y_position - 20, f"Email: {user[1]}")
+            c.drawString(100, y_position - 40, f"Phone Number: {user[2]}")
+            c.drawString(100, y_position - 60, "-" * 50)  # Separator
+            y_position -= 80  # Adjust vertical position for the next user
+
+            if y_position < 50:
+                c.showPage()  # Start a new page
+                c.drawString(100, 750, "Failed Users Report")  # Title for the new page
+                y_position = 730  
+
+        # Save the PDF document
+        c.showPage()
+        c.save()
+
+
+
+    def AddFilePath():
+        global User_registrations
+        file_path = input("\nEnter file path: ")
+        
+        try:
+            wb = op.load_workbook(file_path)
+            ws = wb.active
+
+            duplicates = []  
+            failed_users = []
+            added_users = []  
+            not_agreed=[]
+            for row in range(2, ws.max_row + 1):  
+                row_data = []
+                for col in range(1, 4):  
+                    char = get_column_letter(col)
+                    cell_value = ws[char + str(row)].value
+                    if cell_value is not None:
+                        row_data.append(cell_value)
+
+                if len(row_data) == 3:  
+                    data = list(map(str, row_data))  
+                    user_name = data[0][:3] + data[2][-5:]
+
+                    duplicate_found = False
+                    cursor.execute('''Select * from User_Registrations''')
+                    User_registrations = cursor.fetchall()
+                    for user in User_registrations:
+                        if user[0] == user_name:
+                            duplicates.append(data)  
+                            duplicate_found = True
+                            break
+
+                    if not duplicate_found:
+                        qry = '''INSERT INTO User_Registrations(UserName, Name, Email, PhoneNumber, User_status, Password)
+                                VALUES (?, ?, ?, ?, ?, ?)'''
+                        try:
+                            cursor.execute(qry, (
+                                user_name, data[0], data[1], data[2], "accepted", (data[0][0].upper() + data[0][1:5] + '@' + data[2][:3])))
+                            conn.commit()
+                            print(f"User '{data[0]}' added by Admin Successfully")
+                            added_users.append(user_name)
+                        except pyodbc.Error as ex:
+                            print("Error adding user:", ex)
+                            failed_users.append(data)
+
+            if duplicates:
+                print("Duplicates found in the database. Attempting to generate random usernames...")
+                def check_duplicates(duplicates):
+                    for user in duplicates:
+                        print("Duplicate Found:")
+                        print("Name:", user[0])
+                        print("Phone Number:", user[2])
+
+                        choice = int(input("Your name already exists. Are you sure you want to generate a random username?\n1. Yes\n2. No\n"))
+
+                        if choice == 1:
+                            generated_username = generate_username(user[0], user[2])  
+                            print("Generated Username:", generated_username)
+                            cursor.execute('''Select * from User_Registrations''')
+                            User_registrations = cursor.fetchall()
+                        
+                            if generated_username not in added_users:  
+                                user_found = False
+                                for existing_user in User_registrations:
+                                    if existing_user[0] == generated_username:
+                                        print("Generated username already exists in the database.")
+                                        user_found = True
+                                        break
+
+                                if not user_found:
+                                    try:
+                                        qry = '''INSERT INTO User_Registrations(UserName, Name, Email, PhoneNumber, User_status, Password)
+                                                VALUES (?, ?, ?, ?, ?, ?)'''
+                                        cursor.execute(qry, (
+                                            generated_username, user[0], user[1], user[2], "accepted", generate_password()))  
+                                        conn.commit()
+                                        print(f"User '{user[0]}' added by Admin with generated username '{generated_username}'")
+                                        cursor.execute('''Select * from User_Registrations''')
+                                        User_registrations = cursor.fetchall()
+                                        added_users.append(generated_username)
+                                    except pyodbc.Error as ex:
+                                        print("Error adding user:", ex)
+                                        failed_users.append(user)
+                        
+                            else:
+                                print("Generated username already added previously.")
+                        else:
+                            print("Skipping username generation for this user.")  
+                            not_agreed.append(user)                        
+            check_duplicates(duplicates)
+            if not_agreed:
+                print("Failed to add the following users to the database:")
+                for user in not_agreed:
+                    print("Name:", user[0])
+                    print("Email:", user[1])
+                    print("Phone Number:", user[2])
+                    choice=int(input("Do you again want to generate username for the failed users:\n1.Yes\n2.No"))
+                    if choice==1:
+                        check_duplicates(not_agreed)  
+                        break                
+                    elif(choice==2):
+                        failed_users.append(user)
+                        generate_failed_users_report("failed_users_report.pdf", failed_users)
+                        print("Generated pdf with failed users")
+            wb.save(file_path)
+
+        except FileNotFoundError:
+            print("File not found. Please check the file path.")
+        except Exception as e:
+            print("An error occurred:", e)
+
+    
+    logged_in = False   
+    
+    while True:
+        print("Enter your choice: \n1.Register\n2.Login\n3.Librarian Login\n4.Logout\n")
+        choice = int(input("Choice: "))
+ 
+        if choice == 1:
+            User_registrations = Register()
+            print(User_registrations)
+        elif choice == 2:
+            if logged_in:
+                print("You are already logged in. Please logout first.")
+            else:
+                current_user = Login()
+                if current_user is not None:
+                    logged_in = True
+            
+        elif choice == 3:
+           
+            Librarian_Login()
+
+        elif choice == 4:
+            if logged_in:
+                Logout()
+                logged_in = False
+                break
+            else:
+                print("No user logged in.")
+            break
+        else:
+            print("Invalid choice. Please choose again.")
+   
+    
+
+
+    # Perform database operations here if connection is successful
+      # Close the connection when done
+except pyodbc.Error as ex:
+    sqlstate = ex.args[0]
+    if sqlstate == '28000':
+        print("SQL Server Authentication failed. Check username and password.")
+    elif sqlstate == '28000':
+        print("Cannot open database. Check if the database exists and the user has permission to access it.")
+    else:
+        print("Error:", ex)
+finally:
+    # Close the connection when all operations are done or upon encountering an error
+    conn.close()
