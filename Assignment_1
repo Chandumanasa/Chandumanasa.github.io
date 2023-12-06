@@ -1,0 +1,212 @@
+
+import re
+ 
+User_registrations=[]
+Accepted_Users=[]
+Rejected_Users=[]
+Pending_Users=[]
+Books=[]
+current_user = None
+def Register():
+    global User_registrations
+    Username = ''
+    Email = ''
+    Phone_Number = ''
+    Password = ''
+    while True:
+        if not Username:
+            Username = input("Enter Username: ")
+            existing_username=[user['username'] for user in User_registrations]
+            if not re.match(r"[a-zA-Z]",Username):
+                print("Username should contain only letters\n")
+                Username = ''
+                continue
+
+            if Username in existing_username:
+                print("Username already exists. It must be unique.\n")
+                Username = ''
+                continue
+        
+        
+        if not Email:    
+            Email = input("Enter Email: ")
+            existing_emails = [user['email'] for user in User_registrations]
+            
+            if not re.match(r"[a-zA-Z0-9]+@[a-zA-Z]+\.[a-zA-Z]+", Email):
+                print("Invalid Email format. Please enter a valid email (e.g., xyz@gmail.com).\n")
+                Email = ''
+                continue
+                
+            if Email in existing_emails:
+                print("Email already exists. It must be unique.\n")
+                Email = ''
+                continue
+    
+        if not Phone_Number:
+            Phone_Number = input("Enter Phone Number: ")
+            existing_phones = [user['phone'] for user in User_registrations]
+            
+            if not re.match(r"^[6-9]\d{9}$", Phone_Number):
+                print("Invalid Phone Number. Please enter a 10-digit number starting with 6, 7, 8, or 9.\n")
+                Phone_Number=''
+                continue
+                
+            if Phone_Number in existing_phones:
+                print("Phone number already exists. It must be unique.\n")
+                Phone_Number=''
+                continue
+                        
+        if not Password:
+            Password = input("Enter Password: ")
+            if not (len(Password) >= 8 and any(c.isnumeric() for c in Password) and any(c.isupper() for c in Password) and any(not c.isalnum() for c in Password)):
+                print("Invalid Password. Password length should be 8 characters with at least 1 uppercase letter, 1 number, and 1 special character.\n")
+                Password = ''
+                continue
+       
+        Confirm_Password = input("Confirm the Password: ")
+        if Password != Confirm_Password:
+            print("Passwords do not match. Please re-enter.\n")
+            Password = ''
+            continue
+       
+        print("Registration successful\n")
+        User_registrations.append({'username': Username, 'email': Email, 'phone': Phone_Number, 'password': Password})
+        break
+    
+    return User_registrations
+
+def Login(Accepted_Users):
+    
+    if(len(User_registrations)==0):
+        print("You Need to register First in order to login")
+    else:
+        print("Enter Username and Password to Login:\n")
+        Username=input("Enter Username:")
+        Password=input("Enter Password:")
+        for user in User_registrations:
+            if(user["username"]==Username):
+                print("Your request is pending for approval by admin")
+            else:
+                for i in range(len(Accepted_Users)):
+                    if(User_registrations[i]["username"]==Username):
+                        print("Your request is pending for the Librarion Approval")
+                    elif(Accepted_Users[i]["username"]==Username):
+                        if(Accepted_Users[i]["password"]==Password):
+                            print("*"*10+"Welcome "+ Username[0].upper()+Username[1:]+"*"*10+"\n")
+                        
+                        else:
+                            print("Incorrect Password...Re-enter\n")
+                        break
+                    else:
+                        print("\nUsername does not exist or Incorrect Username\n")
+   
+       
+Accepted_Users=[]
+Rejected_Users=[]
+
+   
+def Librarian_Login():
+    print("*"*10+" Admin Login "+"*"*10)
+    Admin_Credentials = [{'username':'Manasa','password':'admin@123'},{'username':'Sajwa','password':'admin1@123'}]
+    Username = input("Enter Username:")
+    Password = input("Enter Password:")
+    authenticated = False 
+    for i in range(len(Admin_Credentials)):
+        if Admin_Credentials[i]['username'].lower() == Username.lower():
+            if Admin_Credentials[i]['password'] == Password:
+                print("Admin Login Successful\n")
+                print("Welcome "+ Username[0].upper()+Username[1:]+"\n")
+               
+                while True:
+                    print("Select option:\n1.View Registered Users\n2.Approving the request\n3.Add a Book\n4.Remove a Book\n5.Search for a Book\n6.Logout\n")
+                    option = int(input("\nEnter an option:"))                    
+                    if option == 1:
+                        print(User_registrations)
+                       
+                    elif option == 2:
+                        users_to_remove = []
+                        for user in range(len(User_registrations)):
+                            request = input("Accept or Reject the Request  of "+ User_registrations[user]['username']+":")
+                            if request.lower() == "accept":
+                                Accepted_Users.append(User_registrations[user])  
+                                users_to_remove.append(user)
+                                print(Accepted_Users)
+                                   
+                            elif request.lower() == "reject":
+                                Rejected_Users.append(User_registrations[user])
+                                users_to_remove.append(user)
+                                print(Rejected_Users)
+                            
+                            break
+                        else:
+                            print("no requests\n ")
+                        for index in sorted(users_to_remove, reverse=True):
+                            del User_registrations[index]  
+                    elif option == 3:
+                        books_to_remove=[]
+                        Title = input("Enter a Book Name:")
+                        Author = input("Enter Author Name:")
+                        Publication = input("Enter Publisher Name:")
+                        Books.append({'Title': Title, 'Author': Author, 'Publisher': Publication})
+                        print("\n******Book added******\n")
+                    elif option == 4:
+                        BookName=input("Enter the title of book:")
+                        for book in Books:
+                            if book['Title'].lower()==BookName.lower():
+                                books_to_remove.append(i)
+                                print("\n*******Book Removed*******\n")
+                        for index in sorted(books_to_remove, reverse=True):
+                            del Books[index]
+                     
+                    elif option == 5:
+                        search=input("search for the book by title or author Name or publisher: ")
+                        for book in Books:
+                            if((book["Title"].lower()==search) or (book["Author"].lower()==search) or (book["Publisher"].lower()==search)):
+                                print(book)        
+                            
+                        else:
+                            print("The Book you searched for doesnot exist in our library")
+                        
+                         
+                    elif option==6:
+                        Logout()
+                        break
+                         
+                    else:
+                        print("Invalid option")
+                break
+
+        if not authenticated:
+            print("Username or Password incorrect")            
+                       
+
+def Logout():
+   print("\n****Logged out****\n")
+  
+ 
+print("**********Library Management System**********\n\n")
+while True:
+    print("Enter your choice: \n1.Register\n2.Login\n3.Librarian Login\n4.Logout\n")
+    choice = int(input("Choice: "))
+ 
+    if choice == 1:
+        User_registrations = Register()
+        print(User_registrations)
+    elif choice == 2:
+        if current_user is None:  
+            current_user = Login(Accepted_Users)
+        else:
+            print("Please logout first to login as another user.")
+    elif choice == 3:
+        Librarian_Login()
+
+    elif choice == 4:
+        if current_user is not None:  
+            Logout()
+            current_user = None
+        else:
+            print("No user logged in.")
+
+    else:
+        print("Invalid choice. Please choose again.")
+ 
