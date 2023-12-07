@@ -4,6 +4,8 @@ import openpyxl as op
 from openpyxl.utils import get_column_letter
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+import csv
+import pandas as pd
 #connection details
 server = 'TWINH-DES-0309'
 database = 'Library Management system'  
@@ -232,7 +234,7 @@ try:
                             Language=input("Enter the Language of the Book:")
                             Genre=input("Enter the Genre of the Book whether it is fiction ,non-fiction or mystery etc...:")
                             Edition=(input("Enter the Edition of the Book:"))
-                            Book_Id=Title[:3]+ISBN[-5:]
+                            Book_Id=Title.replace(" ","")[:3]+ISBN.replace("-","")[-5:]
                             qry='''INSERT INTO BOOKS(Book_Id,Title,Author,Publication_Year,Quantity,ISBN,Publisher,Number_of_Pages,Language,Genre,Edition)
                             VALUES(?,?,?,?,?,?,?,?,?,?,?)'''
                             cursor.execute(qry,(Book_Id,Title,Author,Publication_Year,Quantity,ISBN,Publisher,Pages,Language,Genre,Edition))
@@ -249,7 +251,7 @@ try:
                                     if book[4]>1:
                                         cursor.execute('''UPDATE BOOKS SET Quantity=Quantity-? from Books where Title=?''',(quan,BookName))
                                         conn.commit()
-                                        print("\n******"+quan+BookName+"s are Removed ******\n")
+                                        print(str(quan)+BookName+"Books are Added")
                                         break
                                        
                                     elif book[4]==1:
@@ -265,6 +267,7 @@ try:
                                 print(book[1],book[2],book[6])
                                 print(book[1].lower())
                                 if((book[1].lower()==search.lower()) or (book[2].lower()==search.lower()) or (book[6].lower()==search.lower())):
+                                    print("The book with Title"+book[1]+"is found and the follwowing are the details of the book:")
                                     print(book) 
                                     found = True       
                                     break
@@ -277,8 +280,7 @@ try:
                             elif option==2:
                                 AddFilePath()
                                 break
-                             
-                            
+                          
                         elif option==7:
                             Logout()
                             
@@ -305,41 +307,76 @@ try:
         return name_part + phone_part  # Concatenate both parts to create the username
     import string
 
-    def generate_password():
-        gen_password = input("Enter Password: ")
-        
-        while not (len(gen_password) >= 8 and any(c.isnumeric() for c in gen_password) and any(c.isupper() for c in gen_password) and any(not c.isalnum() for c in gen_password)):
-            print("Invalid Password. Password length should be 8 characters with at least 1 uppercase letter, 1 number, and 1 special character.\n")
-            gen_password = input("Enter Password: ")
-        
-        return gen_password
+    def generate_password(name,phone):
+        name_part = ''.join(random.sample(name.lower().strip(), 3))  # Take any 3 random characters from name
+        phone_part = ''.join(random.sample(phone, 5)) 
+        chars='@#&*$'
+        special_characters=''.join(random.sample(chars,1))# Take any 5 characters from phone number randomly
+        return name_part[0].upper() +name_part[1:3]+special_characters+phone_part
+   
 
+    def generate_users_report(file_name, users_list, choice, file_format):
+        if file_format.lower() == 'pdf':
+            c = canvas.Canvas(file_name+'.pdf', pagesize=letter)
+            c.setFont("Helvetica", 12)
 
-    def generate_failed_users_report(file_name, not_agreed):
-        c = canvas.Canvas(file_name, pagesize=letter)
-        c.setFont("Helvetica", 12)
+            # Position for listing users
+            y_position = 750
 
-        c.drawString(100, 750, "Failed Users Report")
+            if choice == "success":
+                c.drawString(100, 770, "Successful Users Report")
+                c.drawString(100, 730, "Name Email Phone Number Username Password")
+                c.drawString(100, 710, "-" * 100)  # Separator
 
-        # Position for listing failed users
-        y_position = 730
+                for user in users_list:
+                    name, email, phone, username, password = user
+                    user_info = f"{name} {email} {phone} {username} {password}"
+                    c.drawString(100, y_position, user_info)
+                    y_position -= 20
 
-        # Write information about failed users to the PDF
-        for user in not_agreed:
-            c.drawString(100, y_position, f"Name: {user[0]}")
-            c.drawString(100, y_position - 20, f"Email: {user[1]}")
-            c.drawString(100, y_position - 40, f"Phone Number: {user[2]}")
-            c.drawString(100, y_position - 60, "-" * 50)  # Separator
-            y_position -= 80  # Adjust vertical position for the next user
+                    if y_position < 50:
+                        c.showPage()  # Start a new page
+                        c.drawString(100, 770, "Successful Users Report")
+                        c.drawString(100, 730, "Name Email Phone Number Username Password")
+                        c.drawString(100, 710, "-" * 100)
+                        y_position = 750
 
-            if y_position < 50:
-                c.showPage()  # Start a new page
-                c.drawString(100, 750, "Failed Users Report")  # Title for the new page
-                y_position = 730  
+            elif choice == "failed":
+                c.drawString(100, 770, "Failed Users Report")
+                c.drawString(100, 730, "Name Email Phone Number")
+                c.drawString(100, 710, "-" * 60)
 
-        # Save the PDF document
-        c.showPage()
-        c.save()
+                for user in users_list:
+                    name, email, phone = user
+                    user_info = f"{name} {email} {phone}"
+                    c.drawString(100, y_position, user_info)
+                    y_position -= 20
+
+                    if y_position < 50:
+                        c.showPage()  # Start a new page
+                        c.drawString(100, 770, "Failed Users Report")
+                        c.drawString(100, 730, "Name Email Phone Number")
+                        c.drawString(100, 710, "-" * 60)
+                        y_position = 750
+
+            # Save the PDF document
+            c.showPage()
+            c.save()
+
+        elif file_format.lower() == 'excel' or file_format.lower() == 'csv':
+            if choice == "success":
+                columns = ["Name", "Email", "Phone Number", "Username", "Password"]
+                data = [list(user) for user in users_list]  # Convert tuples to lists for DataFrame
+            elif choice == "failed":
+                columns = ["Name", "Email", "Phone Number"]
+                data = [list(user)[:3] for user in users_list]  # Taking only first 3 elements for failed users
+
+            df = pd.DataFrame(data, columns=columns)
+
+            if file_format.lower() == 'excel':
+                df.to_excel(file_name+'.xlsx', index=False)
+            elif file_format.lower() == 'csv':
+                df.to_csv(file_name+'.csv', index=False)
 
 
 
@@ -384,10 +421,16 @@ try:
                                 user_name, data[0], data[1], data[2], "accepted", (data[0][0].upper() + data[0][1:5] + '@' + data[2][:3])))
                             conn.commit()
                             print(f"User '{data[0]}' added by Admin Successfully")
-                            added_users.append(user_name)
+                            added_users.append([user_name, data[0], data[1], data[2], "accepted", (data[0][0].upper() + data[0][1:5] + '@' + data[2][:3])])
+                    
                         except pyodbc.Error as ex:
                             print("Error adding user:", ex)
                             failed_users.append(data)
+            file_format = input("Enter the file format in which you want to generate the report (PDF, Excel, or CSV): ")
+            generate_users_report("successful_users_report", file_format,added_users,"success")
+            print("Generated "+file_format+" with successful users")
+                    
+                   
 
             if duplicates:
                 print("Duplicates found in the database. Attempting to generate random usernames...")
@@ -397,7 +440,7 @@ try:
                         print("Name:", user[0])
                         print("Phone Number:", user[2])
 
-                        choice = int(input("Your name already exists. Are you sure you want to generate a random username?\n1. Yes\n2. No\n"))
+                        choice = int(input("Your name already exists. Are you sure you want to generate a random username?\n1. Yes\n2.No\n"))
 
                         if choice == 1:
                             generated_username = generate_username(user[0], user[2])  
@@ -418,36 +461,46 @@ try:
                                         qry = '''INSERT INTO User_Registrations(UserName, Name, Email, PhoneNumber, User_status, Password)
                                                 VALUES (?, ?, ?, ?, ?, ?)'''
                                         cursor.execute(qry, (
-                                            generated_username, user[0], user[1], user[2], "accepted", generate_password()))  
+                                            generated_username, user[0], user[1], user[2], "accepted", generate_password(user[1],user[2])))  
                                         conn.commit()
                                         print(f"User '{user[0]}' added by Admin with generated username '{generated_username}'")
                                         cursor.execute('''Select * from User_Registrations''')
                                         User_registrations = cursor.fetchall()
-                                        added_users.append(generated_username)
+                                        added_users.append(user)
+                                       
                                     except pyodbc.Error as ex:
                                         print("Error adding user:", ex)
                                         failed_users.append(user)
-                        
+
+                                file_format = input("Enter the file format in which you want to generate the report (PDF, Excel, or CSV): ")
+                                generate_users_report("successful_users_report", file_format,added_users.extend(generate_username,generate_password()),"success")
+                                print("Generated "+file_format+" with successful users")     
+
                             else:
                                 print("Generated username already added previously.")
-                        else:
+                                
+                        elif choice==2:
                             print("Skipping username generation for this user.")  
-                            not_agreed.append(user)                        
+                            not_agreed.append(user)  
+                                                  
             check_duplicates(duplicates)
             if not_agreed:
-                print("Failed to add the following users to the database:")
+                print("The following people are not willing to generate a username:")
                 for user in not_agreed:
                     print("Name:", user[0])
                     print("Email:", user[1])
                     print("Phone Number:", user[2])
-                    choice=int(input("Do you again want to generate username for the failed users:\n1.Yes\n2.No"))
+                    choice=int(input("Do you again want to generate username for the failed users:\n1.Yes\n2.No\n"))
                     if choice==1:
                         check_duplicates(not_agreed)  
                         break                
                     elif(choice==2):
                         failed_users.append(user)
-                        generate_failed_users_report("failed_users_report.pdf", failed_users)
-                        print("Generated pdf with failed users")
+                        file_format = input("Enter the file format in which you want to generate the report (PDF, Excel, or CSV): ")
+                        generate_users_report("failed_users_report",file_format, failed_users,"failed")
+                        print("Generated "+file_format+" with failed users")
+                        break
+                    break
             wb.save(file_path)
 
         except FileNotFoundError:
@@ -487,10 +540,7 @@ try:
             break
         else:
             print("Invalid choice. Please choose again.")
-   
-    
-
-
+  
     # Perform database operations here if connection is successful
       # Close the connection when done
 except pyodbc.Error as ex:
